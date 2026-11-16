@@ -12,7 +12,26 @@ jobs:
 
     steps:
       - name: Trigger Royal Mail
+        env:
+          CRON_URL: ${{ secrets.ROYAL_MAIL_CRON_URL }}
         run: |
-          curl --fail --silent --show-error \
-          --max-time 120 \
-          "${{ secrets.ROYAL_MAIL_CRON_URL }}"
+          set +e
+
+          HTTP_CODE=$(curl \
+            --http1.1 \
+            --silent \
+            --show-error \
+            --max-time 180 \
+            --user-agent "RoyalMail-GitHub-Actions/1.0" \
+            --output response.txt \
+            --write-out "%{http_code}" \
+            "$CRON_URL")
+
+          CURL_EXIT=$?
+
+          echo "Curl exit code: $CURL_EXIT"
+          echo "HTTP status: $HTTP_CODE"
+          echo "Server response:"
+          cat response.txt 2>/dev/null || true
+
+          exit $CURL_EXIT
