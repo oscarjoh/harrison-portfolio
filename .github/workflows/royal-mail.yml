@@ -3,24 +3,33 @@ name: Royal Mail Hourly Sender
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '22 * * * *'
   workflow_dispatch:
 
 jobs:
   send:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
+      - name: Validate Cron URL
+        env:
+          CRON_URL: ${{ secrets.ROYAL_MAIL_CRON_URL }}
+        run: |
+          if [ -z "$CRON_URL" ]; then
+            echo "ERROR: ROYAL_MAIL_CRON_URL secret is missing."
+            exit 1
+          fi
+
       - name: Trigger Royal Mail
         env:
           CRON_URL: ${{ secrets.ROYAL_MAIL_CRON_URL }}
         run: |
-          set +e
-
           HTTP_CODE=$(curl \
             --http1.1 \
             --silent \
             --show-error \
+            --location \
             --max-time 180 \
             --user-agent "RoyalMail-GitHub-Actions/1.0" \
             --output response.txt \
@@ -34,4 +43,11 @@ jobs:
           echo "Server response:"
           cat response.txt 2>/dev/null || true
 
-          exit $CURL_EXIT
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            exit "$CURL_EXIT"
+          fi
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "ERROR: Server returned HTTP $HTTP_CODE"
+            exit 1
+          fi
